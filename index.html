@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOTE - リアルタイム投票システム</title>
+    <meta name="description" content="PeerJSを使用したリアルタイムでセキュアな投票プラットフォーム。オンラインIDで簡単に参加可能。">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <h1 class="logo">VOTE<span>.</span></h1>
+            <div id="status-indicator" class="status-disconnected">未接続</div>
+        </header>
+
+        <main>
+            <!-- 参加/作成 選択画面 -->
+            <section id="menu-screen" class="screen active">
+                <div class="glass-card main-card">
+                    <h2>投票を作成、または参加する</h2>
+                    <p class="subtitle">インストール不要。IDを共有するだけでリアルタイム投票が可能です。</p>
+
+                    <div class="action-buttons">
+                        <button id="btn-show-create" class="btn primary">投票を新しく作る</button>
+                        <div class="divider"><span>または</span></div>
+                        <div class="input-group">
+                            <input type="text" id="join-id-input" placeholder="オンラインIDを入力">
+                            <button id="btn-join" class="btn secondary">参加する</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 投票作成画面 -->
+            <section id="create-screen" class="screen">
+                <div class="glass-card">
+                    <button class="back-link">← 戻る</button>
+                    <h2>新規投票の作成</h2>
+                    <div class="input-form">
+                        <div class="form-group">
+                            <label for="poll-title-input">投票のタイトル</label>
+                            <input type="text" id="poll-title-input" placeholder="例：今日の昼ごはん何にする？">
+                        </div>
+                        <div class="form-group">
+                            <label>選択肢</label>
+                            <div id="options-container">
+                                <div class="option-row">
+                                    <input type="text" class="option-input" placeholder="選択肢 1">
+                                    <button type="button" class="btn-remove-option" title="削除">×</button>
+                                </div>
+                                <div class="option-row">
+                                    <input type="text" class="option-input" placeholder="選択肢 2">
+                                    <button type="button" class="btn-remove-option" title="削除">×</button>
+                                </div>
+                            </div>
+                            <button id="btn-add-option" class="btn outline">+ 選択肢を追加</button>
+                        </div>
+                        <button id="btn-create-poll" class="btn primary full-width">投票を開始する</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 待機/結果画面 (ホスト用) -->
+            <section id="host-screen" class="screen">
+                <div class="glass-card">
+                    <div class="id-badge">
+                        <span>オンラインID:</span>
+                        <strong id="display-id">----</strong>
+                        <button id="btn-copy-id" title="IDのみコピー">📋</button>
+                        <button id="btn-copy-url" title="参加用URLをコピー">🔗</button>
+                    </div>
+                    <h2 id="host-poll-title">タイトルを表示中...</h2>
+
+                    <!-- ホスト自身の投票ボタン群 -->
+                    <div id="host-vote-options" class="options-list" style="margin-bottom: 2rem;">
+                        <!-- 選択肢ボタンがここに生成される -->
+                    </div>
+
+                    <div id="results-container" class="results-list">
+                        <!-- 結果がここに表示される -->
+                    </div>
+
+                    <div class="stats">
+                        <span id="voter-count">参加人数: 0人</span>
+                    </div>
+
+                    <div class="actions">
+                        <button id="btn-end-poll" class="btn danger full-width">投票を終了する</button>
+                    </div>
+
+                    <!-- ホスト用リアクションボタン群 -->
+                    <div class="reaction-panel">
+                        <p class="reaction-title">みんなにリアクションを送る</p>
+                        <div class="reaction-buttons">
+                            <button class="btn-reaction" data-emoji="👍">👍</button>
+                            <button class="btn-reaction" data-emoji="👏">👏</button>
+                            <button class="btn-reaction" data-emoji="🎉">🎉</button>
+                            <button class="btn-reaction" data-emoji="😂">😂</button>
+                            <button class="btn-reaction" data-emoji="💖">💖</button>
+                            <button class="btn-reaction" data-emoji="🤔">🤔</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- 降ってくる絵文字のコンテナ -->
+                <div id="reaction-container" class="reaction-container"></div>
+            </section>
+
+            <!-- 投票画面 (参加者用) -->
+            <section id="vote-screen" class="screen">
+                <div class="glass-card">
+                    <h2 id="vote-poll-title">読み込み中...</h2>
+                    <p id="vote-instruction">選択肢を1つ選んでください</p>
+
+                    <div id="vote-options-list" class="options-list">
+                        <!-- 選択肢ボタンがここに生成される -->
+                    </div>
+
+                    <div id="after-vote-msg" class="hidden">
+                        <div class="success-icon">✓</div>
+                        <p>投票が完了しました！結果を待っています...</p>
+                    </div>
+
+                    <!-- 参加者用の結果表示領域（初期隠し） -->
+                    <div id="participant-results-container" class="results-list hidden" style="margin-top: 2rem;">
+                        <!-- 結果がここに表示される -->
+                    </div>
+
+                    <!-- リアクションボタン群 -->
+                    <div class="reaction-panel">
+                        <p class="reaction-title">ホストにリアクションを送る</p>
+                        <div class="reaction-buttons">
+                            <button class="btn-reaction" data-emoji="👍">👍</button>
+                            <button class="btn-reaction" data-emoji="👏">👏</button>
+                            <button class="btn-reaction" data-emoji="🎉">🎉</button>
+                            <button class="btn-reaction" data-emoji="😂">😂</button>
+                            <button class="btn-reaction" data-emoji="💖">💖</button>
+                            <button class="btn-reaction" data-emoji="🤔">🤔</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 VOTE - Powered by PeerJS</p>
+        </footer>
+    </div>
+
+    <!-- 通知トースト -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
