@@ -27,28 +27,31 @@ const screens = {
 const statusIndicator = document.getElementById('status-indicator');
 
 // 初期化
-async function init() {
+// 初期化
+function init() {
     setupEventListeners();
 
-    // IPアドレスの取得
-    try {
-        const res = await fetch('https://api.ipify.org?format=json');
-        const data = await res.json();
-        myIp = data.ip;
-    } catch (e) {
-        console.warn("IPの取得に失敗しました", e);
-        // フォールバックとしてランダムな文字列またはlocalStorageを使用
-        myIp = localStorage.getItem('voter_id') || Math.random().toString(36).substring(2, 15);
-        localStorage.setItem('voter_id', myIp);
-    }
+    // IPアドレスの取得 (非同期で裏で実行しておく)
+    fetch('https://api.ipify.org?format=json')
+        .then(res => res.json())
+        .then(data => { myIp = data.ip; })
+        .catch(e => {
+            console.warn("IPの取得に失敗しました", e);
+            // フォールバック
+            myIp = localStorage.getItem('voter_id') || Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('voter_id', myIp);
+        });
 
     // URLパラメータ(?id=xxx)の確認
     const urlParams = new URLSearchParams(window.location.search);
     const joinId = urlParams.get('id');
     if (joinId) {
-        document.getElementById('join-id-input').value = joinId;
-        isHost = false;
-        startPeer(joinId);
+        // パラメータがある場合は少し待ってから(UIの準備が整ってから)参加処理を走らせる
+        setTimeout(() => {
+            document.getElementById('join-id-input').value = joinId;
+            isHost = false;
+            startPeer(joinId);
+        }, 100);
     }
 }
 
@@ -429,7 +432,11 @@ function submitVote(index) {
     `;
     msgContainer.classList.remove('hidden');
 
-    document.getElementById('btn-cancel-vote').onclick = cancelVote;
+    // ★修正点：動的に追加したボタンのイベントリスナーを再設定
+    setTimeout(() => {
+        document.getElementById('btn-cancel-vote').onclick = cancelVote;
+    }, 0);
+
     showToast("投票を受け付けました！");
 }
 
@@ -518,9 +525,13 @@ function cancelHostVote() {
         broadcastResults();
     }
 
+    hasVoted = true; // 意図的: hasVotedを一回trueにしたままですが、下の処理でfalseにします
     hasVoted = false;
     myVotedIndex = -1;
-    renderHostVoteOptions(); // 選択肢リストに切り替え
+
+    // UIを投票ボタン一覧に戻す
+    document.getElementById('host-vote-options').classList.remove('hidden');
+    renderHostVoteOptions();
     showToast("投票を取り消しました");
 }
 
